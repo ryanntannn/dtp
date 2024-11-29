@@ -1,7 +1,7 @@
-# Multilinear Regression Analysis on Energy Efficenct Building Geometries
+# Multilinear Regression Analysis on Countries Emissions Due to Agriculture
 
 ## About the dataset:
 
-source: https://www.kaggle.com/datasets/elikplim/eergy-efficiency-dataset/data
+source: https://www.kaggle.com/datasets/alessandrolobello/agri-food-co2-emission-dataset-forecasting-ml/data
 
-This dataset contains 12 different building shapes simulated in Ecotect. The buildings differ with respect to the glazing area, the glazing area distribution, and the orientation, amongst other parameters. We perform a multilinear regression analysis on the dataset to predict the heating and cooling loads of the buildings.
+This dataset contains the emissions of CO2 due to agriculture in different countries, as well as the population size and demographic of each country.
