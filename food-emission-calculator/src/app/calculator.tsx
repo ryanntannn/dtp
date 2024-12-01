@@ -7,10 +7,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import calcJson from "./area_json_map.json";
+import calcJson from "./targets_json_map.json";
 import { Input } from "@/components/ui/input";
 import { useEffect, useMemo, useState } from "react";
 import { Slider } from "@/components/ui/slider";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 
 function numberToHumanReadable(num: number) {
   const absNum = Math.abs(num);
@@ -25,14 +34,36 @@ function numberToHumanReadable(num: number) {
   }
 }
 
+function predictEmissions(
+  regression: {
+    beta: number[][];
+    means: number[];
+    stds: number[];
+  },
+  totalPopulation: number,
+  urbanPercentage: number
+) {
+  return (
+    regression.beta[0][0] +
+    (regression.beta[1][0] * (totalPopulation - regression.means[0])) /
+      regression.stds[0] +
+    (regression.beta[2][0] * (urbanPercentage / 100 - regression.means[1])) /
+      regression.stds[1]
+  );
+}
+
 export function Calculator() {
   const [countryName, setCountryName] = useState<keyof typeof calcJson | null>(
     null
   );
 
+  const [baselineUrbanPercentage, setBaselineUrbanPercentage] =
+    useState<number>(50);
+  const [baselineTotalPopulation, setBaselineTotalPopulation] = useState<
+    string | null
+  >(null);
   const [urbanPercentage, setUrbanPercentage] = useState<number>(50);
   const [totalPopulation, setTotalPopulation] = useState<string | null>(null);
-  const [year, setYear] = useState<string>("2025");
 
   const selectedCountry = useMemo(() => {
     if (!countryName) return null;
@@ -51,28 +82,21 @@ export function Calculator() {
     return parseInt(totalPopulation) - urbanPopulation;
   }, [totalPopulation, urbanPopulation]);
 
-  const predictedEmissions = useMemo(() => {
-    if (!selectedCountry || !totalPopulation || !year) return;
-
-    return (
-      selectedCountry.betas[0][0] +
-      selectedCountry.betas[1][0] *
-        ((parseInt(totalPopulation) - selectedCountry.means[0]) /
-          selectedCountry.stds[0]) +
-      (selectedCountry.betas[2][0] *
-        (urbanPercentage / 100 - selectedCountry.means[1])) /
-        selectedCountry.stds[1] +
-      selectedCountry.betas[3][0] *
-        ((parseInt(year) - selectedCountry.means[2]) / selectedCountry.stds[2])
-    );
-  }, [selectedCountry, totalPopulation, urbanPercentage, year]);
-
   useEffect(() => {
     if (!selectedCountry) return;
     setTotalPopulation(
-      (selectedCountry?.means[0] + selectedCountry?.means[1]).toFixed()
+      (
+        selectedCountry?.["IPPU"].means[0] + selectedCountry?.["IPPU"].means[1]
+      ).toFixed()
     );
-    setUrbanPercentage(selectedCountry?.means[1] * 100);
+    setUrbanPercentage(selectedCountry?.["IPPU"].means[1] * 100);
+
+    setBaselineTotalPopulation(
+      (
+        selectedCountry?.["IPPU"].means[0] + selectedCountry?.["IPPU"].means[1]
+      ).toFixed()
+    );
+    setBaselineUrbanPercentage(selectedCountry?.["IPPU"].means[1] * 100);
   }, [selectedCountry]);
 
   return (
@@ -92,79 +116,187 @@ export function Calculator() {
             ))}
           </SelectContent>
         </Select>
-        <div>
-          <div className="text-sm">Year</div>
-          <Input
-            type="number"
-            placeholder="Year - 2024"
-            disabled={!countryName}
-            value={year ?? ""}
-            onChange={(e) => {
-              setYear(e.target.value);
-            }}
-          />
-        </div>
-
-        <div>
-          <div className="text-sm">Total Population</div>
-          <div className="flex flex-row gap-2">
-            <Input
-              type="number"
-              placeholder="Total Population"
-              disabled={!countryName}
-              value={totalPopulation ?? ""}
-              onChange={(e) => {
-                setTotalPopulation(e.target.value);
+        <div className="flex flex-col gap-2 border rounded-lg p-3">
+          <h2>Baseline</h2>
+          <div>
+            <div className="text-sm">Total Population</div>
+            <div className="flex flex-row gap-2">
+              <Input
+                type="number"
+                placeholder="Total Population"
+                disabled={!countryName}
+                value={baselineTotalPopulation ?? ""}
+                onChange={(e) => {
+                  setBaselineTotalPopulation(e.target.value);
+                }}
+                step={250000}
+                min={0}
+              />
+            </div>
+          </div>
+          <div>
+            <div className="flex flex-row justify-between">
+              <div className="text-sm">
+                Urban Population
+                <br />
+                <span className="text-xs">
+                  {numberToHumanReadable(baselineUrbanPercentage)}%
+                </span>
+              </div>
+              <div className="text-sm text-right">
+                Rural Population
+                <br />
+                <span className="text-xs">
+                  {numberToHumanReadable(100 - baselineUrbanPercentage)}%
+                </span>
+              </div>
+            </div>
+            <Slider
+              defaultValue={[33]}
+              max={100}
+              step={1}
+              value={[baselineUrbanPercentage]}
+              onValueChange={(v) => {
+                setBaselineUrbanPercentage(v[0]);
               }}
-              step={250000}
-              min={0}
             />
           </div>
         </div>
-        <div>
-          <div className="flex flex-row justify-between">
+        <div className="flex flex-col gap-2 border rounded-lg p-3">
+          <div className="flex flex-row items-center justify-between">
+            <h2>New</h2>
+            <Button
+              onClick={() => {
+                setTotalPopulation(baselineTotalPopulation);
+                setUrbanPercentage(baselineUrbanPercentage);
+              }}>
+              Reset
+            </Button>
+          </div>
+          <div>
             <div className="text-sm">
-              Urban Population
-              <br />
-              <span className="text-xs">
-                {numberToHumanReadable(urbanPopulation)}
-              </span>
+              Total Population (+
+              {numberToHumanReadable(
+                parseFloat(totalPopulation ?? "0") -
+                  parseFloat(baselineTotalPopulation ?? "0")
+              )}{" "}
+              from baseline){" "}
             </div>
-            <div className="text-sm text-right">
-              Rural Population
-              <br />
-              <span className="text-xs">
-                {numberToHumanReadable(ruralPopulation)}
-              </span>
+            <div className="flex flex-row gap-2">
+              <Input
+                type="number"
+                placeholder="Total Population"
+                disabled={!countryName}
+                value={totalPopulation ?? ""}
+                onChange={(e) => {
+                  setTotalPopulation(e.target.value);
+                }}
+                step={250000}
+                min={0}
+              />
             </div>
           </div>
-          <Slider
-            defaultValue={[33]}
-            max={100}
-            step={1}
-            value={[urbanPercentage]}
-            onValueChange={(v) => {
-              setUrbanPercentage(v[0]);
-            }}
-          />
+          <div>
+            <div className="flex flex-row justify-between">
+              <div className="text-sm">
+                Urban Population
+                <br />
+                <span className="text-xs">
+                  {numberToHumanReadable(urbanPopulation)}
+                </span>
+              </div>
+              <div className="text-sm text-right">
+                Rural Population
+                <br />
+                <span className="text-xs">
+                  {numberToHumanReadable(ruralPopulation)}
+                </span>
+              </div>
+            </div>
+            <Slider
+              defaultValue={[33]}
+              max={100}
+              step={1}
+              value={[urbanPercentage]}
+              onValueChange={(v) => {
+                setUrbanPercentage(v[0]);
+              }}
+            />
+          </div>
         </div>
       </div>
-      {predictedEmissions && (
-        <div className="flex flex-col gap-4 w-full">
-          <p>
-            Predicted Emissions (kgCO₂eq): <br />
-            <span className="text-3xl">
-              {numberToHumanReadable(predictedEmissions)}
-            </span>
-          </p>
-          <p>
-            Mean Absolute Percentage Error: <br />
-            <span className="text-3xl">
-              {((selectedCountry?.mape ?? 0) * 100).toFixed(2)}%
-            </span>
-          </p>
-        </div>
-      )}
+
+      {selectedCountry &&
+        urbanPercentage &&
+        totalPopulation &&
+        baselineTotalPopulation &&
+        baselineUrbanPercentage && (
+          <div className="max-h-[700px] w-full overflow-y-scroll">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[100px]">Source</TableHead>
+                  <TableHead>Baseline Emissions (kgCO₂eq)</TableHead>
+                  <TableHead>New Emissions (kgCO₂eq)</TableHead>
+                  <TableHead>Delta</TableHead>
+                  <TableHead>Mean Absolute Percentage Error</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {Object.entries(selectedCountry).map(([key, value]) => {
+                  const predictedBaselineEmissions = predictEmissions(
+                    value,
+                    parseInt(baselineTotalPopulation),
+                    baselineUrbanPercentage
+                  );
+                  const predictedEmissions = predictEmissions(
+                    value,
+                    parseInt(totalPopulation),
+                    urbanPercentage
+                  );
+                  const delta =
+                    ((predictedEmissions - predictedBaselineEmissions) /
+                      predictedBaselineEmissions) *
+                    100;
+                  return (
+                    <TableRow key={key}>
+                      <TableCell>{key}</TableCell>
+                      <TableCell>
+                        {numberToHumanReadable(predictedBaselineEmissions)}
+                      </TableCell>
+                      <TableCell>
+                        {numberToHumanReadable(predictedEmissions)}
+                      </TableCell>
+                      <TableCell
+                        className={
+                          delta < 0
+                            ? "text-green-600"
+                            : delta === 0
+                            ? "text-gray-500"
+                            : "text-red-600"
+                        }>
+                        {delta > 0 && "+"}
+                        {numberToHumanReadable(delta)}%
+                      </TableCell>
+                      <TableCell
+                        className={
+                          value?.mape === undefined
+                            ? "text-gray-500"
+                            : value?.mape < 0.1
+                            ? "text-green-600"
+                            : value?.mape < 0.2
+                            ? "text-yellow-600"
+                            : "text-red-600"
+                        }>
+                        {((value?.mape ?? 0) * 100).toFixed(2)}%
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
     </div>
   );
 }
