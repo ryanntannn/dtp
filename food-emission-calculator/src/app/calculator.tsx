@@ -100,7 +100,7 @@ export function Calculator() {
   }, [selectedCountry]);
 
   return (
-    <div className="flex flex-row gap-4 p-4 border rounded-xl">
+    <div className="flex flex-col w-full md:flex-row gap-4 p-4 border rounded-xl">
       <div className="flex flex-col gap-4 w-full min-w-[300px]">
         <Select
           value={countryName ?? undefined}
@@ -231,13 +231,13 @@ export function Calculator() {
         totalPopulation &&
         baselineTotalPopulation &&
         baselineUrbanPercentage && (
-          <div className="max-h-[700px] w-full overflow-y-scroll">
+          <div className="max-h-[700px] w-full overflow-y-auto overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[100px]">Source</TableHead>
-                  <TableHead>Baseline Emissions (kgCO₂eq)</TableHead>
-                  <TableHead>New Emissions (kgCO₂eq)</TableHead>
+                  <TableHead>Baseline Emissions (ktCO₂eq)</TableHead>
+                  <TableHead>New Emissions (ktCO₂eq)</TableHead>
                   <TableHead>Delta</TableHead>
                   <TableHead>Mean Absolute Percentage Error</TableHead>
                 </TableRow>
